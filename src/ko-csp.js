@@ -1,5 +1,12 @@
 ko.csp = ko.csp || {};
 
+ko.csp.Builder = function(){
+	this._subscribable;
+	this._basis;
+	this.test;
+};
+
+
 // utils namespace
 ko.csp._u = ko.csp._u || {};
 ko.csp._u.isTruthy = function(v){return Boolean(v);};
@@ -7,6 +14,8 @@ ko.csp._u.isFn = function(v){return v instanceof Function;};
 ko.csp._u.getTest = function(v){
 	if(!v)
 		return v;
+	if(v._subscribable)
+		return v._subscribable();
 	if(v.test)
 		return v.test();
 	if(ko.isSubscribable(v))
@@ -15,33 +24,36 @@ ko.csp._u.getTest = function(v){
 		return v();
 	return v;
 };
+ko.csp._u.isBuilder = function(v){
+	return v instanceof ko.csp.Builder;
+}
+ko.csp._u.isSubscribable = function(v){
+	return ko.isSubscribable(v) || ko.csp._u.isBuilder(v);
+}
+
+ko.csp._u.getSubscribable = function(v){
+	if(ko.isSubscribable(v))
+		return v;
+	if(ko.csp._u.isBuilder(v)){
+		//console.log('returning builder')
+		return v.compile();
+	}
+}
 
 
-ko.csp.Builder = function(){
-	this._subscribable;
-	this._basis;
-	this.test;
-};
 
-ko.csp.Builder.prototype._buildFn = function(subscribable,fn){
-	var koo = ko.observable();
 
-	this.test = function() {
-		if(fn(subscribable())) 
-			koo(v);
-	};
-
-	subscribable.when(fn).subscribe(koo);
-	this._subscribable=koo;
-	return this;
-};
+ko.csp.Builder.prototype.rule = function(){
+	return new ko.csp.Builder();
+}
 
 // reads all arguments
 ko.csp.Builder.prototype.and = function(){
 	var utils = ko.csp._u;
 	var koo = ko.observable();
 	var isTruthy = utils.isTruthy;
-	var isSubscribable = ko.isSubscribable;
+	var isSubscribable = utils.isSubscribable;
+	var getSubscribable = utils.getSubscribable;
 	var args = arguments;
 	var testFn;
 	var isFirstCall = true;
@@ -66,7 +78,7 @@ ko.csp.Builder.prototype.and = function(){
 			// bindingkey hack to only bind once
 			// if we can subscribe to this value lets do it
 			if(isFirstCall && isSubscribable(arg)){
-				arg.when(isTruthy).subscribe(testFn);
+				getSubscribable(arg).when(isTruthy).subscribe(testFn);
 			}
 		}
 
@@ -88,12 +100,13 @@ ko.csp.Builder.prototype.or = function(){
 	var utils = ko.csp._u;
 	var koo = ko.observable();
 	var isTruthy = utils.isTruthy;
-	var isSubscribable = ko.isSubscribable;
+	var isSubscribable = utils.isSubscribable;
+	var getSubscribable = utils.getSubscribable;
 	var args = arguments;
 	var testFn;
 	var isFirstCall = true;
 	//debugger;
-	testFn = function(bindingKey) {
+	testFn = function() {
 		
 		var vals = [];
 		var val;
@@ -105,19 +118,22 @@ ko.csp.Builder.prototype.or = function(){
 		// test every arg for truthyness
 		for(;iter<len;iter++) {
 			arg = args[iter];
+			//console.log('or arg',arg,isFirstCall, isSubscribable(arg), typeof arg);
 			val = utils.getTest(arg);
 			vals.push(val);
 			if(utils.isTruthy(val))
 				someTruthy = true;
 
-			// bindingkey hack to only bind once
 			// if we can subscribe to this value lets do it
 			if(isFirstCall && isSubscribable(arg)){
-				arg.when(isTruthy).subscribe(testFn);
-				
+				// var subsc = getSubscribable(arg);
+				// console.log('or firstcall',arg,subsc);
+				// subsc.subscribe(function(v){ console.log('had or subs',v); });
+				getSubscribable(arg).when(isTruthy).subscribe(testFn);
 			}
 		}
 
+		//console.log('or sometruthy',false);
 		if(someTruthy){
 			koo(vals)
 		}
@@ -135,7 +151,8 @@ ko.csp.Builder.prototype.isTruthy = function(val){
 	var utils = ko.csp._u;
 	var isTruthy = utils.isTruthy;
 	var getTest = utils.getTest;
-	var isSubscribable = ko.isSubscribable;
+	var isSubscribable = utils.isSubscribable;
+	var getSubscribable = utils.getSubscribable;
 	var koo = ko.observable();
 
 	this.test = function(){
@@ -146,14 +163,14 @@ ko.csp.Builder.prototype.isTruthy = function(val){
 	};
 
 	if(isSubscribable(val))
-		val.when(isTruthy).subscribe(koo);
+		getSubscribable(val).when(isTruthy).subscribe(koo);
 	this._subscribable=koo;
 	return this;
 };
 
 ko.csp.Builder.prototype.compile = function(fn) {
 	if(fn)
-		this._subscribable.when(ko.csp._u.isTruthy).subscribe(fn);
+		this._subscribable.subscribe(fn);
 	if(this.test){
 		// test and pub if needed 
 		this.test();
@@ -164,7 +181,7 @@ ko.csp.Builder.prototype.compile = function(fn) {
 ko.csp.buildRule = function(builderFn) {
 	var builder;
 
-	if(typeof builderFn === "ko.csp.Builder"){
+	if(ko.csp._u.isBuilder(builderFn)){
 		builder = builderFn;
 	} else {
 		builder = new ko.csp.Builder();
