@@ -1,6 +1,6 @@
 {
   "name": "ko-csp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "csp for knockoutjs",
   "main": "index.js",
   "scripts": {
