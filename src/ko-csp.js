@@ -9,7 +9,13 @@ ko.csp.Builder = function(){
 
 // utils namespace
 ko.csp._u = ko.csp._u || {};
-ko.csp._u.isTruthy = function(v){return Boolean(v);};
+ko.csp._u.isTruthy = function(v){
+	if(!v)
+		return false;
+	if(Array.isArray(v))
+		return v.length;
+	return Boolean(v);
+};
 ko.csp._u.isFn = function(v){return v instanceof Function;};
 ko.csp._u.getTest = function(v){
 	if(!v)
@@ -168,9 +174,39 @@ ko.csp.Builder.prototype.isTruthy = function(val){
 	return this;
 };
 
+ko.csp.Builder.prototype.when = function(val,predicateFn){
+	var utils = ko.csp._u;
+	var getTest = utils.getTest;
+	var isSubscribable = utils.isSubscribable;
+	var getSubscribable = utils.getSubscribable;
+	var koo = ko.observable();
+
+	this.test = function(){
+		var v = getTest(val);
+		if(predicateFn(v)) {
+			koo(v);
+		}
+	};
+
+	if(isSubscribable(val))
+		getSubscribable(val).when(predicateFn).subscribe(koo);
+	this._subscribable=koo;
+	return this;
+};
+
 ko.csp.Builder.prototype.compile = function(fn) {
 	if(fn)
 		this._subscribable.subscribe(fn);
+	if(this.test){
+		// test and pub if needed 
+		this.test();
+	}
+	return this._subscribable;
+};
+
+ko.csp.Builder.prototype.compileTo = function(fn) {
+	if(fn)
+		fn(this._subscribable);
 	if(this.test){
 		// test and pub if needed 
 		this.test();

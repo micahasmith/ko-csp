@@ -10,6 +10,22 @@ gulp.task('clean',function(){
 		.pipe(clean());
 });
 
+gulp.task('concat', function() {
+	var banner = ['/**',
+	  ' * <%= pkg.name %> - <%= pkg.description %>',
+	  ' * @version v<%= pkg.version %>',
+	  ' * @link <%= pkg.homepage %>',
+	  ' * @license <%= pkg.license %>',
+	  ' */',
+	  ''].join('\n')
+
+
+  gulp.src(['src/ko.sub*.js','src/ko-csp*.js'])
+  	.pipe(concat('build/ko-csp.'+packageJson.version+'.js'))
+  	.pipe(header(banner ,{pkg:packageJson}))
+    .pipe(gulp.dest('./'));
+
+});
 
 gulp.task('compress', function() {
 	var banner = ['/**',
@@ -23,7 +39,7 @@ gulp.task('compress', function() {
 
   gulp.src(['src/ko.sub*.js','src/ko-csp*.js'])
     .pipe(uglify())
-  	.pipe(concat('build/ko-csp.'+packageJson.version+'.js'))
+  	.pipe(concat('build/ko-csp.'+packageJson.version+'.min.js'))
   	.pipe(header(banner ,{pkg:packageJson}))
     .pipe(gulp.dest('./'));
 
